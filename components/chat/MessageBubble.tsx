@@ -62,50 +62,121 @@ function parseMessageContent(text: string) {
     let mainContent = text;
     let rabbitRankPromo: string | null = null;
 
-    // Extract reasoning section (handles multiple formats from Gemini API)
-    const reasoningPatterns = [
-        // **Reasoning:** ... **Answer:**
-        /\*\*Reasoning:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
-        // Reasoning: ... Answer: (no bold)
-        /^Reasoning:\s*([\s\S]*?)(?=\n(?:Answer|Final\s+Answer|Response):)/im,
-        // [Reasoning]...[/Reasoning]
-        /\[Reasoning\]([\s\S]*?)\[\/Reasoning\]/i,
-        // **Internal Reasoning:** or **Thought Process:**
-        /\*\*(Internal\s+)?Reasoning:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
-        /\*\*Thought\s+Process:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
-        // --- Reasoning --- style
-        /---\s*Reasoning\s*---\s*([\s\S]*?)(?=---\s*(Answer|Final\s+Answer|Response)\s*---)/i,
-        // Markdown headers: ## Reasoning ... ## Answer
-        /^#{2,3}\s*Reasoning\s*[\r\n]+([\s\S]*?)(?=\n#{2,3}\s*(Answer|Final\s+Answer|Response)\b)/im,
-        // (Reasoning: ...) at the start
-        /^\s*\(Reasoning:\s*([\s\S]*?)\)\s*\n/i,
-        // Thinking: ... Answer: format
-        /^Thinking:\s*([\s\S]*?)(?=\n(?:Answer|Final\s+Answer|Response):)/im,
-        // <thinking>...</thinking>
-        /<thinking>([\s\S]*?)<\/thinking>/i,
-    ];
+    // First, extract <thinking> tags (can appear multiple times)
+    const thinkingMatches = mainContent.match(/<thinking>([\s\S]*?)<\/thinking>/gi);
+    if (thinkingMatches) {
+        const allThinking = thinkingMatches
+            .map(m => m.replace(/<\/?thinking>/gi, '').trim())
+            .filter(Boolean)
+            .join('\n\n');
+        if (allThinking) {
+            reasoning = allThinking;
+        }
+        mainContent = mainContent.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+    }
 
-    for (const pattern of reasoningPatterns) {
-        const match = mainContent.match(pattern);
-        if (match) {
-            // Handle different capture group positions
-            reasoning = (match[2] || match[1]).trim();
-            mainContent = mainContent.replace(match[0], '').trim();
-            // Clean up answer prefixes
-            mainContent = mainContent.replace(/^\*\*(Answer|Final\s+Answer|Response):\*\*\s*/i, '').trim();
-            mainContent = mainContent.replace(/^---\s*(Answer|Final\s+Answer|Response)\s*---\s*/i, '').trim();
-            mainContent = mainContent.replace(/^(Answer|Final\s+Answer|Response):\s*/i, '').trim();
-            break;
+    // Extract [Reasoning]...[/Reasoning] tags
+    const bracketReasoningMatch = mainContent.match(/\[Reasoning\]([\s\S]*?)\[\/Reasoning\]/i);
+    if (bracketReasoningMatch) {
+        const extracted = bracketReasoningMatch[1]?.trim();
+        if (extracted) {
+            reasoning = reasoning ? `${reasoning}\n\n${extracted}` : extracted;
+        }
+        mainContent = mainContent.replace(bracketReasoningMatch[0], '').trim();
+    }
+
+    // Extract **Reasoning:** ... **Answer:** format (most common from Gemini)
+    // Use a more precise pattern that requires both sections to be present
+    const boldReasoningAnswerMatch = mainContent.match(
+        /\*\*Reasoning:\*\*\s*([\s\S]*?)\*\*(Answer|Final\s*Answer|Response):\*\*\s*([\s\S]*)/i
+    );
+    if (boldReasoningAnswerMatch) {
+        const reasoningText = boldReasoningAnswerMatch[1]?.trim();
+        const answerText = boldReasoningAnswerMatch[3]?.trim();
+
+        // Only accept if both reasoning and answer have substantial content
+        if (reasoningText && reasoningText.length > 10 && answerText && answerText.length > 10) {
+            reasoning = reasoning ? `${reasoning}\n\n${reasoningText}` : reasoningText;
+            mainContent = answerText;
         }
     }
 
-    // Also check for <thinking> tags that might appear multiple times
-    const thinkingMatches = mainContent.match(/<thinking>([\s\S]*?)<\/thinking>/gi);
-    if (thinkingMatches && !reasoning) {
-        const allThinking = thinkingMatches.map(m => m.replace(/<\/?thinking>/gi, '').trim()).join('\n\n');
-        reasoning = allThinking;
-        mainContent = mainContent.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+    // If no reasoning found yet, try other formats
+    if (!reasoning) {
+        // Try Reasoning: ... Answer: (no bold) format
+        const plainReasoningAnswerMatch = mainContent.match(
+            /^Reasoning:\s*([\s\S]*?)\n(Answer|Final\s*Answer|Response):\s*([\s\S]*)/im
+        );
+        if (plainReasoningAnswerMatch) {
+            const reasoningText = plainReasoningAnswerMatch[1]?.trim();
+            const answerText = plainReasoningAnswerMatch[3]?.trim();
+
+            if (reasoningText && reasoningText.length > 10 && answerText && answerText.length > 10) {
+                reasoning = reasoningText;
+                mainContent = answerText;
+            }
+        }
     }
+
+    if (!reasoning) {
+        // Try Thinking: ... Answer: format
+        const thinkingAnswerMatch = mainContent.match(
+            /^Thinking:\s*([\s\S]*?)\n(Answer|Final\s*Answer|Response):\s*([\s\S]*)/im
+        );
+        if (thinkingAnswerMatch) {
+            const reasoningText = thinkingAnswerMatch[1]?.trim();
+            const answerText = thinkingAnswerMatch[3]?.trim();
+
+            if (reasoningText && reasoningText.length > 10 && answerText && answerText.length > 10) {
+                reasoning = reasoningText;
+                mainContent = answerText;
+            }
+        }
+    }
+
+    if (!reasoning) {
+        // Try --- Reasoning --- ... --- Answer --- format
+        const dashReasoningMatch = mainContent.match(
+            /---\s*Reasoning\s*---\s*([\s\S]*?)---\s*(Answer|Final\s*Answer|Response)\s*---\s*([\s\S]*)/i
+        );
+        if (dashReasoningMatch) {
+            const reasoningText = dashReasoningMatch[1]?.trim();
+            const answerText = dashReasoningMatch[3]?.trim();
+
+            if (reasoningText && reasoningText.length > 10 && answerText && answerText.length > 10) {
+                reasoning = reasoningText;
+                mainContent = answerText;
+            }
+        }
+    }
+
+    if (!reasoning) {
+        // Try ## Reasoning ... ## Answer format (markdown headers)
+        const headerReasoningMatch = mainContent.match(
+            /^#{2,3}\s*Reasoning\s*[\r\n]+([\s\S]*?)(?=\n#{2,3}\s*(Answer|Final\s*Answer|Response)\b)/im
+        );
+        if (headerReasoningMatch) {
+            const reasoningText = headerReasoningMatch[1]?.trim();
+            // Find the answer section after the reasoning
+            const afterReasoning = mainContent.slice(mainContent.indexOf(headerReasoningMatch[0]) + headerReasoningMatch[0].length);
+            const answerHeaderMatch = afterReasoning.match(/^#{2,3}\s*(Answer|Final\s*Answer|Response)\s*[\r\n]+([\s\S]*)/im);
+
+            if (answerHeaderMatch) {
+                const answerText = answerHeaderMatch[2]?.trim();
+
+                if (reasoningText && reasoningText.length > 10 && answerText && answerText.length > 10) {
+                    reasoning = reasoningText;
+                    mainContent = answerText;
+                }
+            }
+        }
+    }
+
+    // Clean up any leftover answer labels at the start of mainContent
+    mainContent = mainContent.replace(/^\*\*(Answer|Final\s*Answer|Response):\*\*\s*/i, '').trim();
+    mainContent = mainContent.replace(/^---\s*(Answer|Final\s*Answer|Response)\s*---\s*/i, '').trim();
+    mainContent = mainContent.replace(/^#{2,3}\s*(Answer|Final\s*Answer|Response)\s*[\r\n]+/im, '').trim();
+    mainContent = mainContent.replace(/^(Answer|Final\s*Answer|Response):\s*/i, '').trim();
 
     // Extract Rabbit Rank promotion
     const promoPatterns = [
@@ -119,6 +190,19 @@ function parseMessageContent(text: string) {
             rabbitRankPromo = match[0].replace(/^---\s*\n?\s*/, '').trim();
             mainContent = mainContent.replace(match[0], '').trim();
             break;
+        }
+    }
+
+    // Final validation: if mainContent is empty or just whitespace, something went wrong
+    // Reset and show everything as main content
+    if (!mainContent || mainContent.length < 5) {
+        // Check if reasoning has the actual answer content
+        if (reasoning && reasoning.length > 20) {
+            // Keep as is - reasoning has content and mainContent is legitimately empty
+        } else {
+            // Reset - parsing failed
+            mainContent = text;
+            reasoning = null;
         }
     }
 
@@ -483,33 +567,33 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                                     {/* Reasoning Section - COLLAPSED BY DEFAULT */}
                                     {reasoning && (
                                         <div className="
-                      rounded-xl overflow-hidden 
-                      border-2 border-cyan-200 dark:border-cyan-800
+                      rounded-lg overflow-hidden 
+                      border border-cyan-200 dark:border-cyan-800
                       bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-900/20 dark:to-zinc-800/50
                     ">
                                             <button
                                                 onClick={() => setShowReasoning(!showReasoning)}
                                                 className="
-                          w-full flex items-center gap-3 px-4 py-3
-                          text-xs font-bold uppercase tracking-wider
+                          w-full flex items-center gap-2 px-3 py-2
+                          text-[10px] font-bold uppercase tracking-wider
                           text-cyan-700 dark:text-cyan-400
                           hover:bg-cyan-100 dark:hover:bg-cyan-900/30
                           transition-all duration-200
                         "
                                             >
                                                 <div className={`
-                          w-6 h-6 rounded-lg flex items-center justify-center
+                          w-5 h-5 rounded-md flex items-center justify-center
                           ${showReasoning
                                                         ? 'bg-cyan-500 text-white'
                                                         : 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400'
                                                     }
                           transition-colors duration-200
                         `}>
-                                                    <Brain size={12} />
+                                                    <Brain size={10} />
                                                 </div>
                                                 <span>{showReasoning ? 'Hide Reasoning' : 'View Reasoning'}</span>
                                                 <ChevronDown
-                                                    size={14}
+                                                    size={12}
                                                     className={`ml-auto transition-transform duration-300 ${showReasoning ? 'rotate-180' : ''}`}
                                                 />
                                             </button>
@@ -521,11 +605,11 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                       `}>
                                                 <div className="overflow-hidden">
                                                     <div className="
-                            px-4 py-3 
-                            border-t-2 border-cyan-200 dark:border-cyan-800
+                            px-3 py-2.5 
+                            border-t border-cyan-200 dark:border-cyan-800
                             bg-cyan-50/50 dark:bg-zinc-900/50
                           ">
-                                                        <div className="prose prose-sm text-zinc-600 dark:text-zinc-400">
+                                                        <div className="prose prose-sm text-[11px] text-zinc-600 dark:text-zinc-400">
                                                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                                                 {reasoning}
                                                             </ReactMarkdown>

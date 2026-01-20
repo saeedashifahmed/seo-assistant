@@ -247,7 +247,13 @@ export default function Home() {
         transform transition-transform duration-300 ease-in-out md:hidden
         ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <Sidebar onNewChat={handleNewChat} onClearChat={handleClearChat} onToolSelect={handleToolSelect} />
+        <Sidebar
+          onNewChat={handleNewChat}
+          onClearChat={handleClearChat}
+          onToolSelect={handleToolSelect}
+          isMobile={true}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
       </div>
 
       {/* Desktop sidebar */}

@@ -12,7 +12,8 @@ import {
     ExternalLink,
     BookOpen,
     Eye,
-    Search
+    Search,
+    X
 } from 'lucide-react';
 import { ThemeToggle } from '../ui/ThemeToggle';
 
@@ -20,6 +21,8 @@ interface SidebarProps {
     onNewChat: () => void;
     onClearChat: () => void;
     onToolSelect?: (prompt: string) => void;
+    isMobile?: boolean;
+    onClose?: () => void;
 }
 
 const SEO_TOOLS = [
@@ -61,48 +64,80 @@ const SEO_TOOLS = [
     },
 ];
 
-export function Sidebar({ onNewChat, onClearChat, onToolSelect }: SidebarProps) {
+export function Sidebar({ onNewChat, onClearChat, onToolSelect, isMobile = false, onClose }: SidebarProps) {
     const handleToolClick = (prompt: string) => {
         if (onToolSelect) {
             onToolSelect(prompt);
         }
+        // Close sidebar on mobile after selecting a tool
+        if (isMobile && onClose) {
+            onClose();
+        }
+    };
+
+    const handleNewChatClick = () => {
+        onNewChat();
+        // Close sidebar on mobile after starting new chat
+        if (isMobile && onClose) {
+            onClose();
+        }
+    };
+
+    const handleClearChatClick = () => {
+        onClearChat();
+        // Close sidebar on mobile after clearing chat
+        if (isMobile && onClose) {
+            onClose();
+        }
     };
 
     return (
-        <div className="
-      hidden md:flex w-[280px] flex-col 
-      border-r border-zinc-200 dark:border-zinc-800 
-      bg-white dark:bg-zinc-900 
+        <div className={`
+      ${isMobile ? 'flex' : 'hidden md:flex'} w-[280px] flex-col h-full
+      border-r border-zinc-200 dark:border-zinc-800
+      bg-white dark:bg-zinc-900
       transition-colors duration-300
-    ">
+    `}>
             {/* Header */}
             <div className="p-5 border-b border-zinc-100 dark:border-zinc-800">
-                <div className="flex items-center gap-3">
-                    <div className="
-            w-10 h-10 
-            bg-gradient-to-br from-cyan-400 to-cyan-600 
-            rounded-xl flex items-center justify-center 
-            shadow-lg shadow-cyan-500/30
-          ">
-                        <Brain size={20} className="text-white" />
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="
+                w-10 h-10
+                bg-gradient-to-br from-cyan-400 to-cyan-600
+                rounded-xl flex items-center justify-center
+                shadow-lg shadow-cyan-500/30
+              ">
+                            <Brain size={20} className="text-white" />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-base tracking-tight bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
+                                Rabbit Rank AI
+                            </h1>
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                                SEO Assistant
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="font-bold text-base tracking-tight bg-gradient-to-r from-cyan-600 to-teal-500 bg-clip-text text-transparent">
-                            Rabbit Rank AI
-                        </h1>
-                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                            SEO Assistant
-                        </p>
-                    </div>
+                    {/* Mobile close button */}
+                    {isMobile && onClose && (
+                        <button
+                            onClick={onClose}
+                            className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                            aria-label="Close sidebar"
+                        >
+                            <X size={20} className="text-zinc-500 dark:text-zinc-400" />
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* New Chat Button */}
             <div className="p-4">
                 <button
-                    onClick={onNewChat}
+                    onClick={handleNewChatClick}
                     className="
-            w-full flex items-center justify-center gap-2 
+            w-full flex items-center justify-center gap-2
             py-3 px-4 rounded-xl
             bg-gradient-to-r from-cyan-400 to-cyan-600
             text-white font-semibold text-sm
@@ -229,7 +264,7 @@ export function Sidebar({ onNewChat, onClearChat, onToolSelect }: SidebarProps) 
             <div className="mt-auto p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
                 {/* Clear Chat Button */}
                 <button
-                    onClick={onClearChat}
+                    onClick={handleClearChatClick}
                     className="
             w-full flex items-center gap-3 p-3 rounded-xl
             text-zinc-500 dark:text-zinc-400
