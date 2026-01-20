@@ -65,20 +65,24 @@ function parseMessageContent(text: string) {
     // Extract reasoning section (handles multiple formats from Gemini API)
     const reasoningPatterns = [
         // **Reasoning:** ... **Answer:**
-        /\*\*Reasoning:\*\*\s*([\s\S]*?)(?=\*\*Answer:\*\*)/i,
-        // <thinking>...</thinking>
-        /<thinking>([\s\S]*?)<\/thinking>/gi,
+        /\*\*Reasoning:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
+        // Reasoning: ... Answer: (no bold)
+        /^Reasoning:\s*([\s\S]*?)(?=\n(?:Answer|Final\s+Answer|Response):)/im,
         // [Reasoning]...[/Reasoning]
-        /\[Reasoning\]([\s\S]*?)\[\/Reasoning\]/gi,
+        /\[Reasoning\]([\s\S]*?)\[\/Reasoning\]/i,
         // **Internal Reasoning:** or **Thought Process:**
-        /\*\*(Internal\s+)?Reasoning:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Response):\*\*)/i,
-        /\*\*Thought\s+Process:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Response):\*\*)/i,
+        /\*\*(Internal\s+)?Reasoning:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
+        /\*\*Thought\s+Process:\*\*\s*([\s\S]*?)(?=\*\*(Answer|Final\s+Answer|Response):\*\*)/i,
         // --- Reasoning --- style
-        /---\s*Reasoning\s*---\s*([\s\S]*?)(?=---\s*(Answer|Response)\s*---)/i,
+        /---\s*Reasoning\s*---\s*([\s\S]*?)(?=---\s*(Answer|Final\s+Answer|Response)\s*---)/i,
+        // Markdown headers: ## Reasoning ... ## Answer
+        /^#{2,3}\s*Reasoning\s*[\r\n]+([\s\S]*?)(?=\n#{2,3}\s*(Answer|Final\s+Answer|Response)\b)/im,
         // (Reasoning: ...) at the start
         /^\s*\(Reasoning:\s*([\s\S]*?)\)\s*\n/i,
         // Thinking: ... Answer: format
-        /^Thinking:\s*([\s\S]*?)(?=\nAnswer:)/im,
+        /^Thinking:\s*([\s\S]*?)(?=\n(?:Answer|Final\s+Answer|Response):)/im,
+        // <thinking>...</thinking>
+        /<thinking>([\s\S]*?)<\/thinking>/i,
     ];
 
     for (const pattern of reasoningPatterns) {
@@ -88,9 +92,9 @@ function parseMessageContent(text: string) {
             reasoning = (match[2] || match[1]).trim();
             mainContent = mainContent.replace(match[0], '').trim();
             // Clean up answer prefixes
-            mainContent = mainContent.replace(/^\*\*(Answer|Response):\*\*\s*/i, '').trim();
-            mainContent = mainContent.replace(/^---\s*(Answer|Response)\s*---\s*/i, '').trim();
-            mainContent = mainContent.replace(/^Answer:\s*/i, '').trim();
+            mainContent = mainContent.replace(/^\*\*(Answer|Final\s+Answer|Response):\*\*\s*/i, '').trim();
+            mainContent = mainContent.replace(/^---\s*(Answer|Final\s+Answer|Response)\s*---\s*/i, '').trim();
+            mainContent = mainContent.replace(/^(Answer|Final\s+Answer|Response):\s*/i, '').trim();
             break;
         }
     }
