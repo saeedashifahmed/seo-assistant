@@ -16,7 +16,7 @@ interface SEOPromptsProps {
 
 export function SEOPrompts({ onSelect }: SEOPromptsProps) {
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8 animate-fade-in-up">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 animate-fade-in-up">
             {SEO_PROMPTS.map((prompt, idx) => {
                 const IconComponent = IconMap[prompt.icon] || Search;
 
@@ -25,7 +25,7 @@ export function SEOPrompts({ onSelect }: SEOPromptsProps) {
                         key={idx}
                         onClick={() => onSelect(prompt.text)}
                         className="
-              group relative flex flex-col items-start p-5 rounded-2xl
+              group relative flex flex-col items-start p-4 sm:p-5 rounded-2xl
               border border-zinc-200 dark:border-zinc-800
               bg-white dark:bg-zinc-900
               hover:border-cyan-400 dark:hover:border-cyan-600

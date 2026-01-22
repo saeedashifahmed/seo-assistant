@@ -7,6 +7,10 @@ export interface Message {
   sources?: Source[];
   timestamp: Date;
   reasoning?: string;
+  dataSource?: SEODataSource;
+  thinkingMode?: boolean;
+  responseMode?: ResponseMode;
+  model?: string;
 }
 
 export interface Source {
@@ -30,6 +34,8 @@ export type SEODataSource =
   | 'kwfinder'
   | 'googletrends'
   | 'none';
+
+export type ResponseMode = 'concise' | 'balanced' | 'deep';
 
 export interface SEODataSourceConfig {
   id: SEODataSource;

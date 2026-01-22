@@ -74,7 +74,7 @@ export function DataSourceSelector({ value, onChange }: DataSourceSelectorProps)
 
             {isOpen && (
                 <div className="
-          absolute bottom-full left-0 mb-2 w-80 
+          absolute bottom-full left-0 mb-2 w-[min(20rem,calc(100vw-2rem))] 
           bg-white dark:bg-zinc-900 
           border-2 border-zinc-200 dark:border-zinc-700 
           rounded-2xl shadow-2xl shadow-black/20

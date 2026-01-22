@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, AlertCircle } from 'lucide-react';
 
 interface ToastProps {
@@ -11,6 +12,11 @@ interface ToastProps {
 
 export function Toast({ message, onClose, type = 'info' }: ToastProps) {
     const [isVisible, setIsVisible] = useState(false);
+    const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalRoot(document.body);
+    }, []);
 
     useEffect(() => {
         if (message) {
@@ -23,7 +29,7 @@ export function Toast({ message, onClose, type = 'info' }: ToastProps) {
         }
     }, [message, onClose]);
 
-    if (!message) return null;
+    if (!message || !portalRoot) return null;
 
     const colors = {
         info: 'border-emerald-500/30 bg-emerald-50 dark:bg-emerald-900/20',
@@ -37,16 +43,16 @@ export function Toast({ message, onClose, type = 'info' }: ToastProps) {
         success: 'text-green-500',
     };
 
-    return (
+    return createPortal(
         <div
-            className={`fixed top-6 right-6 z-50 transition-all duration-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+            className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-50 pointer-events-none transition-all duration-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
                 }`}
         >
             <div className={`
-        glass border ${colors[type]} 
+        pointer-events-auto glass border ${colors[type]} 
         px-4 py-3 rounded-xl shadow-2xl 
         flex items-center gap-3 
-        max-w-sm
+        max-w-[min(24rem,calc(100vw-2rem))]
       `}>
                 <AlertCircle size={20} className={iconColors[type]} />
                 <div className="flex-1">
@@ -63,10 +69,12 @@ export function Toast({ message, onClose, type = 'info' }: ToastProps) {
                         setTimeout(onClose, 300);
                     }}
                     className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
+                    aria-label="Dismiss notification"
                 >
                     <X size={16} />
                 </button>
             </div>
-        </div>
+        </div>,
+        portalRoot
     );
 }

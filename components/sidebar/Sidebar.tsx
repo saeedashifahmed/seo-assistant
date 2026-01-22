@@ -93,7 +93,7 @@ export function Sidebar({ onNewChat, onClearChat, onToolSelect, isMobile = false
 
     return (
         <div className={`
-      ${isMobile ? 'flex' : 'hidden md:flex'} w-[280px] flex-col h-full
+      ${isMobile ? 'flex' : 'hidden md:flex'} w-[min(280px,85vw)] md:w-[280px] flex-col h-full
       border-r border-zinc-200 dark:border-zinc-800
       bg-white dark:bg-zinc-900
       transition-colors duration-300

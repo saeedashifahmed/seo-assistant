@@ -27,29 +27,33 @@ export function ThinkingBubble({ dataSource }: ThinkingBubbleProps) {
     }, [steps.length]);
 
     return (
-        <div className="flex w-full mb-8 justify-start animate-fade-in-up">
-            <div className="flex items-center gap-4">
+        <div className="flex w-full justify-start animate-fade-in-up">
+            <div className="flex w-full items-start gap-4">
                 {/* Avatar */}
                 <div className="
-          relative flex-shrink-0 w-10 h-10 rounded-xl 
+          relative flex-shrink-0 w-11 h-11 rounded-2xl 
           flex items-center justify-center
           bg-gradient-to-br from-cyan-400 to-cyan-600
-          shadow-lg shadow-cyan-500/30
+          shadow-xl shadow-cyan-500/30
         ">
                     <Brain size={18} className="text-white" />
 
                     {/* Animated ring */}
                     <div className="
-            absolute inset-0 rounded-xl
+            absolute inset-0 rounded-2xl
             border-2 border-cyan-400
             animate-ping opacity-30
           " />
                 </div>
 
-                {/* Thinking text */}
-                <div className="flex flex-col gap-1">
+                {/* Thinking card */}
+                <div className="
+          flex-1 rounded-3xl border border-zinc-200/80 dark:border-zinc-800/80
+          bg-white/90 dark:bg-zinc-950/70 backdrop-blur-xl
+          px-5 py-4 shadow-xl shadow-zinc-200/50 dark:shadow-black/40
+        ">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                        <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
                             SEO Assistant
                         </span>
                         <span className="
@@ -63,7 +67,7 @@ export function ThinkingBubble({ dataSource }: ThinkingBubbleProps) {
                         </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2">
                         <span className="text-sm text-zinc-500 dark:text-zinc-400">
                             {steps[step]}
                         </span>

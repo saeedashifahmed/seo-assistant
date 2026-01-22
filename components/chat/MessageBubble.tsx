@@ -13,15 +13,39 @@ import {
     Lightbulb,
     Sparkles,
     FileDown,
-    Download
+    Volume2,
+    Pause,
+    Star,
+    ListChecks,
+    Wand2,
+    FileText
 } from 'lucide-react';
-import { Message } from '@/types';
+import { Message, SEO_DATA_SOURCES } from '@/types';
 import { formatTime } from '@/lib/utils';
+import { generateSpeech } from '@/lib/gemini';
+import { SourcesList } from '@/components/chat/SourcesList';
 
 interface MessageBubbleProps {
     message: Message;
     isStreaming?: boolean;
+    isPinned?: boolean;
+    onTogglePin?: (id: string) => void;
+    onQuickAction?: (actionId: string, content: string) => void;
+    onNotify?: (message: string, type?: 'info' | 'error' | 'success') => void;
 }
+
+const QUICK_ACTIONS = [
+    { id: 'summarize', label: 'Summarize', icon: Sparkles },
+    { id: 'checklist', label: 'Checklist', icon: ListChecks },
+    { id: 'metatags', label: 'Meta Tags', icon: FileText },
+    { id: 'actionplan', label: 'Action Plan', icon: Wand2 },
+];
+
+const RESPONSE_MODE_LABELS: Record<string, string> = {
+    concise: 'Concise',
+    balanced: 'Balanced',
+    deep: 'Deep'
+};
 
 // Typing effect hook
 function useTypingEffect(text: string, speed: number = 10, enabled: boolean = true) {
@@ -458,11 +482,22 @@ async function exportToPDF(content: string, title: string = 'SEO-Assistant-Respo
     }, 500);
 }
 
-export function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+export function MessageBubble({
+    message,
+    isStreaming = false,
+    isPinned = false,
+    onTogglePin,
+    onQuickAction,
+    onNotify
+}: MessageBubbleProps) {
     const isUser = message.sender === 'user';
     const [copied, setCopied] = useState(false);
     const [showReasoning, setShowReasoning] = useState(false);
     const [hasAnimated, setHasAnimated] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Parse message content
     const { reasoning, mainContent, rabbitRankPromo } = parseMessageContent(message.text || '');
@@ -480,16 +515,40 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
         }
     }, [isComplete, isUser]);
 
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+            if (audioUrl) {
+                URL.revokeObjectURL(audioUrl);
+            }
+        };
+    }, [audioUrl]);
+
+    const sourceConfig = message.dataSource
+        ? SEO_DATA_SOURCES.find(source => source.id === message.dataSource)
+        : undefined;
+
+    const responseModeLabel = message.responseMode
+        ? RESPONSE_MODE_LABELS[message.responseMode] || message.responseMode
+        : undefined;
+
+    const modelLabel = message.model || 'Gemini 2.5 Flash';
+
     const handleCopy = async () => {
         if (message.text) {
             await navigator.clipboard.writeText(mainContent);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+            onNotify?.('Copied response to clipboard', 'success');
         }
     };
 
     const handleExportPDF = () => {
         exportToPDF(mainContent);
+        onNotify?.('Preparing PDF export', 'info');
     };
 
     const handleCopyUserMessage = async () => {
@@ -497,51 +556,99 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
             await navigator.clipboard.writeText(message.text);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+            onNotify?.('Copied message to clipboard', 'success');
+        }
+    };
+
+    const startPlayback = (url: string) => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => {
+            setIsPlaying(false);
+            onNotify?.('Audio playback failed', 'error');
+        };
+        audio.play()
+            .then(() => setIsPlaying(true))
+            .catch(() => {
+                setIsPlaying(false);
+                onNotify?.('Audio playback failed', 'error');
+            });
+    };
+
+    const handleToggleSpeech = async () => {
+        if (isSpeaking) return;
+
+        if (isPlaying) {
+            audioRef.current?.pause();
+            setIsPlaying(false);
+            return;
+        }
+
+        if (audioUrl) {
+            startPlayback(audioUrl);
+            return;
+        }
+
+        try {
+            setIsSpeaking(true);
+            const url = await generateSpeech(mainContent);
+            setAudioUrl(url);
+            startPlayback(url);
+        } catch (error) {
+            onNotify?.('Failed to generate audio', 'error');
+        } finally {
+            setIsSpeaking(false);
         }
     };
 
     const contentToShow = hasAnimated ? mainContent : displayedText;
 
     return (
-        <div className={`flex w-full mb-8 ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in-up`}>
-            <div className={`flex ${isUser ? 'max-w-md' : 'max-w-[85%]'} ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-3`}>
-                {/* AI Avatar */}
+        <div
+            id={`message-${message.id}`}
+            className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in-up`}
+        >
+            <div className={`flex w-full ${isUser ? 'flex-row-reverse' : 'flex-row'} gap-4`}>
                 {!isUser && (
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 pt-1">
                         <div className="
-                          w-10 h-10 rounded-xl 
+                          w-11 h-11 rounded-2xl 
                           flex items-center justify-center
                           bg-gradient-to-br from-cyan-400 to-cyan-600
-                          shadow-lg shadow-cyan-500/30
+                          shadow-xl shadow-cyan-500/30
                         ">
                             <Bot size={18} className="text-white" />
                         </div>
                     </div>
                 )}
 
-                {/* User Avatar */}
                 {isUser && (
-                    <div className="relative flex-shrink-0 group">
+                    <div className="relative flex-shrink-0 pt-1">
                         <div className="
-                          w-10 h-10 rounded-xl 
+                          w-11 h-11 rounded-2xl 
                           flex items-center justify-center
                           bg-gradient-to-br from-cyan-500 via-cyan-400 to-teal-500
-                          shadow-lg shadow-cyan-500/40
-                          transition-all duration-300
-                          group-hover:scale-110 group-hover:shadow-cyan-400/60
+                          shadow-xl shadow-cyan-500/40
                         ">
                             <Sparkles size={16} className="text-white animate-pulse" />
                         </div>
                     </div>
                 )}
 
-                {/* Message content */}
                 <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} flex-1 min-w-0`}>
-                    {/* Header - Just timestamp */}
-                    <div className="flex items-center gap-2 mb-1.5 px-1">
-                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
-                            {formatTime(message.timestamp)}
-                        </span>
+                    <div className={`flex items-center gap-2 mb-2 px-1 ${isUser ? 'justify-end' : 'justify-between'} w-full`}>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-300">
+                                {isUser ? 'You' : 'Rabbit Rank AI'}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                {formatTime(message.timestamp)}
+                            </span>
+                        </div>
                         {!isComplete && !isUser && (
                             <span className="flex items-center gap-1 text-[10px] text-cyan-500">
                                 <Loader2 size={10} className="animate-spin" />
@@ -550,45 +657,111 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                         )}
                     </div>
 
-                    {/* Message bubble */}
                     <div className={`
-            w-full rounded-2xl overflow-hidden
-            ${isUser
-                            ? 'bg-gradient-to-br from-cyan-500 via-cyan-400 to-teal-500 text-white px-4 py-2.5 rounded-tr-sm shadow-lg shadow-cyan-500/25'
-                            : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-5 py-4 rounded-tl-sm shadow-lg shadow-zinc-200/50 dark:shadow-black/20'
+                        relative w-full overflow-hidden rounded-3xl
+                        ${isUser
+                            ? 'max-w-[520px] bg-gradient-to-br from-cyan-500 via-cyan-400 to-teal-500 text-white border border-cyan-400/40 shadow-2xl shadow-cyan-500/20'
+                            : 'bg-white/90 dark:bg-zinc-950/70 border border-zinc-200/80 dark:border-zinc-800/80 shadow-2xl shadow-zinc-200/50 dark:shadow-black/40 backdrop-blur-xl'
                         }
-            transition-all duration-300 hover:shadow-xl
-          `}>
+                    `}>
+                        {!isUser && (
+                            <div className="flex flex-col gap-3 px-3 sm:px-4 py-3 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-zinc-50/70 dark:bg-zinc-900/60 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400">
+                                        Answer
+                                    </span>
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-300">
+                                        {modelLabel}
+                                    </span>
+                                    {sourceConfig && sourceConfig.id !== 'none' && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300">
+                                            Grounded · {sourceConfig.label}
+                                        </span>
+                                    )}
+                                    {message.thinkingMode && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300">
+                                            Thinking
+                                        </span>
+                                    )}
+                                    {responseModeLabel && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300">
+                                            Style · {responseModeLabel}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {onTogglePin && (
+                                        <button
+                                            onClick={() => onTogglePin(message.id)}
+                                            className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border border-transparent transition-colors ${isPinned
+                                                    ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                                                    : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                                                }`}
+                                            title={isPinned ? 'Unpin message' : 'Pin message'}
+                                        >
+                                            <Star size={16} className={isPinned ? 'fill-current' : ''} />
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={handleToggleSpeech}
+                                        disabled={isSpeaking || !mainContent}
+                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-transparent text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                                        title={isPlaying ? 'Pause audio' : 'Listen to answer'}
+                                    >
+                                        {isSpeaking ? <Loader2 size={16} className="animate-spin" /> : isPlaying ? <Pause size={16} /> : <Volume2 size={16} />}
+                                    </button>
+                                    <button
+                                        onClick={handleCopy}
+                                        className={`w-8 h-8 inline-flex items-center justify-center rounded-lg border border-transparent transition-colors ${copied
+                                                ? 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/30'
+                                                : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                                            }`}
+                                        title="Copy answer"
+                                    >
+                                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                                    </button>
+                                    <button
+                                        onClick={handleExportPDF}
+                                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-transparent text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                                        title="Export PDF"
+                                    >
+                                        <FileDown size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {message.type === 'text' && (
                             isUser ? (
-                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+                                <div className="px-5 py-4">
+                                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.text}</p>
+                                </div>
                             ) : (
-                                <div className="space-y-4">
-                                    {/* Reasoning Section - COLLAPSED BY DEFAULT */}
+                                <div className="px-4 sm:px-5 py-3.5 sm:py-4 space-y-4">
                                     {reasoning && (
                                         <div className="
-                      rounded-lg overflow-hidden 
-                      border border-cyan-200 dark:border-cyan-800
-                      bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-900/20 dark:to-zinc-800/50
-                    ">
+                                            rounded-xl overflow-hidden 
+                                            border border-cyan-200 dark:border-cyan-800
+                                            bg-gradient-to-br from-cyan-50 to-white dark:from-cyan-900/20 dark:to-zinc-800/50
+                                        ">
                                             <button
                                                 onClick={() => setShowReasoning(!showReasoning)}
                                                 className="
-                          w-full flex items-center gap-2 px-3 py-2
-                          text-[10px] font-bold uppercase tracking-wider
-                          text-cyan-700 dark:text-cyan-400
-                          hover:bg-cyan-100 dark:hover:bg-cyan-900/30
-                          transition-all duration-200
-                        "
+                                                  w-full flex items-center gap-2 px-3.5 py-2.5
+                                                  text-[10px] font-bold uppercase tracking-wider
+                                                  text-cyan-700 dark:text-cyan-400
+                                                  hover:bg-cyan-100 dark:hover:bg-cyan-900/30
+                                                  transition-all duration-200
+                                                "
                                             >
                                                 <div className={`
-                          w-5 h-5 rounded-md flex items-center justify-center
-                          ${showReasoning
+                                                  w-5 h-5 rounded-md flex items-center justify-center
+                                                  ${showReasoning
                                                         ? 'bg-cyan-500 text-white'
                                                         : 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400'
                                                     }
-                          transition-colors duration-200
-                        `}>
+                                                  transition-colors duration-200
+                                                `}>
                                                     <Brain size={10} />
                                                 </div>
                                                 <span>{showReasoning ? 'Hide Reasoning' : 'View Reasoning'}</span>
@@ -598,17 +771,16 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                                                 />
                                             </button>
 
-                                            {/* Collapsible content */}
                                             <div className={`
-                        grid transition-all duration-300 ease-in-out
-                        ${showReasoning ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}
-                      `}>
+                                                grid transition-all duration-300 ease-in-out
+                                                ${showReasoning ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}
+                                            `}>
                                                 <div className="overflow-hidden">
                                                     <div className="
-                            px-3 py-2.5 
-                            border-t border-cyan-200 dark:border-cyan-800
-                            bg-cyan-50/50 dark:bg-zinc-900/50
-                          ">
+                                                        px-3.5 py-3 
+                                                        border-t border-cyan-200 dark:border-cyan-800
+                                                        bg-cyan-50/50 dark:bg-zinc-900/50
+                                                    ">
                                                         <div className="prose prose-sm text-[11px] text-zinc-600 dark:text-zinc-400">
                                                             <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                                                 {reasoning}
@@ -620,8 +792,7 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                                         </div>
                                     )}
 
-                                    {/* Main content */}
-                                    <div className="prose">
+                                    <div className="prose text-[0.9rem] sm:text-[0.95rem]">
                                         <ReactMarkdown
                                             remarkPlugins={[remarkGfm]}
                                             components={{
@@ -639,11 +810,11 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                                                     const isInline = !className;
                                                     return isInline ? (
                                                         <code className="
-                              bg-cyan-100 dark:bg-cyan-900/30 
-                              px-1.5 py-0.5 rounded text-sm
-                              text-cyan-700 dark:text-cyan-400
-                              border border-cyan-200 dark:border-cyan-800
-                            " {...props}>
+                                                            bg-cyan-100 dark:bg-cyan-900/30 
+                                                            px-1.5 py-0.5 rounded text-sm
+                                                            text-cyan-700 dark:text-cyan-400
+                                                            border border-cyan-200 dark:border-cyan-800
+                                                        " {...props}>
                                                             {children}
                                                         </code>
                                                     ) : (
@@ -657,32 +828,30 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                                             {contentToShow}
                                         </ReactMarkdown>
 
-                                        {/* Typing cursor */}
                                         {!isComplete && !isUser && (
                                             <span className="inline-block w-0.5 h-4 bg-cyan-500 animate-pulse ml-0.5" />
                                         )}
                                     </div>
 
-                                    {/* Rabbit Rank Promotion Box */}
                                     {rabbitRankPromo && isComplete && (
                                         <div className="
-                      relative mt-6 p-4 rounded-xl
-                      bg-gradient-to-br from-cyan-50 via-white to-teal-50 
-                      dark:from-cyan-900/20 dark:via-zinc-800/50 dark:to-teal-900/20
-                      border-2 border-cyan-200 dark:border-cyan-800
-                      shadow-lg shadow-cyan-500/10
-                      overflow-hidden
-                      animate-fade-in-up
-                    ">
+                                            relative mt-6 p-4 rounded-xl
+                                            bg-gradient-to-br from-cyan-50 via-white to-teal-50 
+                                            dark:from-cyan-900/20 dark:via-zinc-800/50 dark:to-teal-900/20
+                                            border-2 border-cyan-200 dark:border-cyan-800
+                                            shadow-lg shadow-cyan-500/10
+                                            overflow-hidden
+                                            animate-fade-in-up
+                                        ">
                                             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-teal-400 to-cyan-400" />
 
                                             <div className="flex items-start gap-3">
                                                 <div className="
-                          flex-shrink-0 w-10 h-10 rounded-xl
-                          bg-gradient-to-br from-cyan-400 to-teal-500
-                          flex items-center justify-center
-                          shadow-lg shadow-cyan-500/30
-                        ">
+                                                    flex-shrink-0 w-10 h-10 rounded-xl
+                                                    bg-gradient-to-br from-cyan-400 to-teal-500
+                                                    flex items-center justify-center
+                                                    shadow-lg shadow-cyan-500/30
+                                                ">
                                                     <Lightbulb size={18} className="text-white" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -710,76 +879,62 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
                         )}
 
                         {message.type === 'image' && message.image && (
-                            <div className="mt-2 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
-                                <img src={message.image} alt="Generated" className="w-full h-auto max-h-[600px] object-cover" />
+                            <div className="p-3 sm:p-4">
+                                <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
+                                    <img src={message.image} alt="Generated" className="w-full h-auto max-h-[600px] object-cover" />
+                                </div>
+                            </div>
+                        )}
+
+                        {!isUser && message.sources && message.sources.length > 0 && (
+                            <div className="px-4 sm:px-5 pb-4">
+                                <SourcesList sources={message.sources} />
+                            </div>
+                        )}
+
+                        {!isUser && onQuickAction && isComplete && (
+                            <div className="px-4 sm:px-5 pb-5">
+                                <div className="flex flex-wrap gap-2">
+                                    {QUICK_ACTIONS.map((action) => {
+                                        const ActionIcon = action.icon;
+                                        return (
+                                            <button
+                                                key={action.id}
+                                                onClick={() => onQuickAction(action.id, mainContent)}
+                                                className="
+                                                    inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+                                                    text-[11px] font-semibold uppercase tracking-wider
+                                                    bg-zinc-50 dark:bg-zinc-900
+                                                    border border-zinc-200 dark:border-zinc-700
+                                                    text-zinc-600 dark:text-zinc-300
+                                                    hover:border-cyan-400 dark:hover:border-cyan-600
+                                                    hover:text-cyan-600 dark:hover:text-cyan-300
+                                                    hover:bg-cyan-50 dark:hover:bg-cyan-900/20
+                                                    transition-all duration-200
+                                                "
+                                            >
+                                                <ActionIcon size={12} />
+                                                {action.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Action Buttons - Professional styling */}
-                    {!isUser && message.type === 'text' && isComplete && (
-                        <div className="flex items-center gap-2 mt-3 px-1">
-                            {/* Copy Button */}
-                            <button
-                                onClick={handleCopy}
-                                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-lg
-                  text-xs font-medium transition-all duration-200
-                  border
-                  ${copied
-                                        ? 'bg-cyan-100 dark:bg-cyan-900/30 border-cyan-300 dark:border-cyan-700 text-cyan-700 dark:text-cyan-400'
-                                        : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-cyan-300 dark:hover:border-cyan-700 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
-                                    }
-                `}
-                            >
-                                {copied ? (
-                                    <>
-                                        <Check size={14} />
-                                        <span>Copied!</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Copy size={14} />
-                                        <span>Copy</span>
-                                    </>
-                                )}
-                            </button>
-
-                            {/* Export PDF Button */}
-                            <button
-                                onClick={handleExportPDF}
-                                className="
-                  flex items-center gap-2 px-3 py-1.5 rounded-lg
-                  text-xs font-medium transition-all duration-200
-                  border
-                  bg-zinc-50 dark:bg-zinc-800 
-                  border-zinc-200 dark:border-zinc-700 
-                  text-zinc-600 dark:text-zinc-400 
-                  hover:border-cyan-300 dark:hover:border-cyan-700 
-                  hover:bg-cyan-50 dark:hover:bg-cyan-900/20
-                  hover:text-cyan-700 dark:hover:text-cyan-400
-                "
-                            >
-                                <FileDown size={14} />
-                                <span>Export PDF</span>
-                            </button>
-                        </div>
-                    )}
-
-                    {/* User Message Action Buttons */}
                     {isUser && message.type === 'text' && (
                         <div className="flex items-center gap-1.5 mt-2 px-1 justify-end">
-                            {/* Copy Button */}
                             <button
                                 onClick={handleCopyUserMessage}
                                 className={`
-                                  flex items-center gap-1.5 px-2 py-1 rounded-md
-                                  text-[10px] font-medium transition-all duration-200
-                                  ${copied
+                                    flex items-center gap-1.5 px-2 py-1 rounded-md
+                                    text-[10px] font-medium transition-all duration-200
+                                    ${copied
                                         ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400'
                                         : 'bg-white/80 dark:bg-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
                                     }
-                                  border border-zinc-200/50 dark:border-zinc-700/50
+                                    border border-zinc-200/50 dark:border-zinc-700/50
                                 `}
                                 title="Copy message"
                             >

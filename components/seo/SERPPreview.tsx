@@ -7,8 +7,7 @@ import {
     ChevronDown,
     ChevronUp,
     AlertTriangle,
-    CheckCircle,
-    Eye
+    CheckCircle
 } from 'lucide-react';
 
 interface SERPPreviewProps {
@@ -77,7 +76,7 @@ export function SERPPreview({
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="
           w-full flex items-center justify-between 
-          px-5 py-4 
+          px-4 sm:px-5 py-4 
           bg-gradient-to-r from-cyan-50 to-white dark:from-cyan-900/20 dark:to-zinc-900
           border-b border-zinc-200 dark:border-zinc-800
           hover:bg-cyan-50 dark:hover:bg-cyan-900/30
@@ -86,13 +85,10 @@ export function SERPPreview({
             >
                 <div className="flex items-center gap-3">
                     <div className="
-            w-10 h-10 rounded-xl 
+            w-9 h-9 sm:w-10 sm:h-10 rounded-xl 
             bg-gradient-to-br from-cyan-400 to-cyan-600
-            flex items-center justify-center
             shadow-lg shadow-cyan-500/30
-          ">
-                        <Eye size={18} className="text-white" />
-                    </div>
+          " />
                     <div className="text-left">
                         <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
                             SERP Preview
@@ -111,10 +107,10 @@ export function SERPPreview({
 
             {/* Content */}
             {isExpanded && (
-                <div className="p-5 space-y-6">
+                <div className="p-4 sm:p-5 space-y-6">
                     {/* Google Preview */}
                     <div className="
-            p-4 rounded-xl 
+            p-3 sm:p-4 rounded-xl 
             bg-white dark:bg-zinc-800 
             border border-zinc-200 dark:border-zinc-700
           ">
@@ -135,7 +131,7 @@ export function SERPPreview({
 
                             {/* Title */}
                             <h4 className="
-                text-lg font-medium 
+                text-base sm:text-lg font-medium 
                 text-blue-600 dark:text-blue-400
                 hover:underline cursor-pointer
                 line-clamp-2
@@ -144,7 +140,7 @@ export function SERPPreview({
                             </h4>
 
                             {/* Description */}
-                            <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                            <p className="text-[13px] sm:text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
                                 {truncatedDescription || 'Enter your meta description...'}
                             </p>
                         </div>

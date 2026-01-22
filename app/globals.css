@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
@@ -14,6 +15,7 @@
   --text-secondary: #475569;
   --text-muted: #94a3b8;
   --border: #e2e8f0;
+  --font-display: 'Sora', 'Inter', system-ui, -apple-system, sans-serif;
   /* Electric Cyan Primary Color */
   --accent: #00D9FF;
   --accent-hover: #00B8D9;
@@ -30,6 +32,7 @@
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --border: #27272a;
+  --font-display: 'Sora', 'Inter', system-ui, -apple-system, sans-serif;
   /* Electric Cyan Primary Color */
   --accent: #00D9FF;
   --accent-hover: #22D3EE;
@@ -53,6 +56,52 @@ body {
   overflow: hidden;
 }
 
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(0, 217, 255, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 90% 10%, rgba(13, 148, 136, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(241, 245, 249, 0.9));
+}
+
+.dark .app-shell {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(0, 217, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 90% 10%, rgba(13, 148, 136, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(9, 9, 11, 0.96), rgba(18, 18, 20, 0.96));
+}
+
+.app-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.app-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dark .app-shell::before {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  opacity: 0.2;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
@@ -69,6 +118,11 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+.custom-scrollbar {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 /* Animations */
@@ -228,6 +282,29 @@ body {
 
 .prose h3 {
   font-size: 1.2em;
+}
+
+@media (max-width: 640px) {
+  .prose {
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .prose h1 {
+    font-size: 1.4em;
+  }
+
+  .prose h2 {
+    font-size: 1.2em;
+  }
+
+  .prose h3 {
+    font-size: 1.05em;
+  }
+
+  .prose pre {
+    font-size: 0.82em;
+  }
 }
 
 .prose ul,

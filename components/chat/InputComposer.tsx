@@ -10,7 +10,7 @@ import {
     FileText,
     Image as ImageIcon
 } from 'lucide-react';
-import { Attachment, SEODataSource } from '@/types';
+import { Attachment, ResponseMode, SEODataSource } from '@/types';
 import { DataSourceSelector } from '../sidebar/DataSourceSelector';
 import { readFileAsDataURL, readFileAsText } from '@/lib/utils';
 
@@ -21,7 +21,15 @@ interface InputComposerProps {
     onDataSourceChange: (source: SEODataSource) => void;
     thinkingMode: boolean;
     onThinkingModeChange: (enabled: boolean) => void;
+    responseMode: ResponseMode;
+    onResponseModeChange: (mode: ResponseMode) => void;
 }
+
+const RESPONSE_MODES: Array<{ id: ResponseMode; label: string; description: string }> = [
+    { id: 'concise', label: 'Concise', description: 'Short, direct answers' },
+    { id: 'balanced', label: 'Balanced', description: 'Best of both worlds' },
+    { id: 'deep', label: 'Deep', description: 'Thorough, strategic' }
+];
 
 export function InputComposer({
     onSubmit,
@@ -30,6 +38,8 @@ export function InputComposer({
     onDataSourceChange,
     thinkingMode,
     onThinkingModeChange,
+    responseMode,
+    onResponseModeChange,
 }: InputComposerProps) {
     const [input, setInput] = useState('');
     const [attachment, setAttachment] = useState<Attachment | null>(null);
@@ -127,8 +137,8 @@ export function InputComposer({
     };
 
     return (
-        <div className="p-4 md:p-6 bg-transparent">
-            <div className="max-w-3xl mx-auto">
+        <div className="p-3 sm:p-4 md:p-6 bg-transparent">
+            <div className="max-w-5xl 2xl:max-w-6xl mx-auto">
                 <form onSubmit={handleSubmit} className="relative group">
                     {/* Gradient glow on focus */}
                     <div className="
@@ -225,14 +235,14 @@ export function InputComposer({
                 text-zinc-900 dark:text-zinc-100 
                 placeholder-zinc-400 dark:placeholder-zinc-600 
                 focus:outline-none resize-none
-                text-sm leading-relaxed
+                text-sm sm:text-[0.95rem] leading-relaxed
               "
                             disabled={isProcessing}
                         />
 
                         {/* Toolbar */}
-                        <div className="flex items-center justify-between px-3 pb-3 pt-1">
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-3 px-3 pb-3 pt-1 md:flex-row md:items-center md:justify-between">
+                            <div className="flex flex-wrap items-center gap-2">
                                 {/* File attachment */}
                                 <input
                                     type="file"
@@ -262,7 +272,7 @@ export function InputComposer({
                                     onChange={onDataSourceChange}
                                 />
 
-                                <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-700 mx-1" />
+                                <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-700 mx-1 hidden sm:block" />
 
                                 {/* Thinking mode toggle */}
                                 <button
@@ -300,26 +310,77 @@ export function InputComposer({
                                         }
                   `} />
                                 </button>
+
+                                {/* Response mode */}
+                                <div className="
+                  hidden md:flex items-center gap-1 p-1 rounded-xl
+                  border border-zinc-200 dark:border-zinc-700
+                  bg-white/80 dark:bg-zinc-900/70
+                ">
+                                    {RESPONSE_MODES.map((mode) => (
+                                        <button
+                                            key={mode.id}
+                                            type="button"
+                                            onClick={() => onResponseModeChange(mode.id)}
+                                            className={`
+                        px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider
+                        transition-all duration-200
+                        ${responseMode === mode.id
+                                                    ? 'bg-gradient-to-r from-cyan-500 to-teal-500 text-white shadow-md shadow-cyan-500/20'
+                                                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                                                }
+                      `}
+                                            title={mode.description}
+                                        >
+                                            {mode.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Submit button */}
-                            <button
-                                type="submit"
-                                disabled={(!input.trim() && !attachment) || isProcessing}
-                                className={`
-                  p-2.5 rounded-xl transition-all duration-300
-                  ${(input.trim() || attachment) && !isProcessing
-                                        ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-105'
-                                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-300 dark:text-zinc-600 cursor-not-allowed'
-                                    }
-                `}
-                            >
-                                {isProcessing ? (
-                                    <Loader2 size={18} className="animate-spin" />
-                                ) : (
-                                    <Send size={18} />
-                                )}
-                            </button>
+                            <div className="flex items-center justify-between gap-3 md:justify-end">
+                                <div className="md:hidden flex items-center gap-2">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                                        Response
+                                    </span>
+                                    <select
+                                        value={responseMode}
+                                        onChange={(event) => onResponseModeChange(event.target.value as ResponseMode)}
+                                        className="
+                      rounded-lg border border-zinc-200 dark:border-zinc-700
+                      bg-white/80 dark:bg-zinc-900/70
+                      text-[11px] font-semibold uppercase tracking-wider
+                      px-2.5 py-1.5 text-zinc-600 dark:text-zinc-300
+                      focus:outline-none focus:ring-2 focus:ring-cyan-500/20
+                    "
+                                    >
+                                        {RESPONSE_MODES.map((mode) => (
+                                            <option key={mode.id} value={mode.id}>
+                                                {mode.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={(!input.trim() && !attachment) || isProcessing}
+                                    className={`
+                      p-2.5 rounded-xl transition-all duration-300
+                      ${(input.trim() || attachment) && !isProcessing
+                                            ? 'bg-gradient-to-r from-cyan-500 to-cyan-600 text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-105'
+                                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-300 dark:text-zinc-600 cursor-not-allowed'
+                                        }
+                    `}
+                                >
+                                    {isProcessing ? (
+                                        <Loader2 size={18} className="animate-spin" />
+                                    ) : (
+                                        <Send size={18} />
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
